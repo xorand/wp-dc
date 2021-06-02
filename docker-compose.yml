@@ -1,0 +1,71 @@
+version: '3.9'
+
+services:
+  
+  wp_db:
+    image: mysql:8
+    container_name: mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: "${DB_ROOT_PASS}"
+      MYSQL_DATABASE: wp
+      MYSQL_USER: "${DB_WP_USER}"
+      MYSQL_PASSWORD: "${DB_WP_PASS}"
+    volumes:
+      - "mysql:/var/lib/mysql"    
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin -h 'localhost' -u root -p${DB_ROOT_PASS} ping --silent"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+  
+  wp:
+    image: wordpress
+    ports:
+      - 80:80
+    container_name: wp
+    restart: always
+    depends_on:
+      wp_db:
+        condition: service_healthy
+    environment:
+      WORDPRESS_DB_HOST: wp_db
+      WORDPRESS_DB_USER: "${DB_WP_USER}"
+      WORDPRESS_DB_PASSWORD: "${DB_WP_PASS}"
+      WORDPRESS_DB_NAME: "${DB_WP_NAME}"
+    volumes:
+      - "html:/var/www/html/"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  wp-cli:
+    image: wordpress:cli
+    container_name: wp-cli
+    user: "33:33"
+    environment:
+      WORDPRESS_DB_HOST: wp_db
+      WORDPRESS_DB_USER: "${DB_WP_USER}"
+      WORDPRESS_DB_PASSWORD: "${DB_WP_PASS}"
+      WORDPRESS_DB_NAME: "${DB_WP_NAME}"
+      WP_URL: "${WP_URL}"
+      WP_TITLE: "${WP_TITLE}"
+      WP_ADMIN_USER: "${WP_ADMIN_USER}"
+      WP_ADMIN_PASS: "${WP_ADMIN_PASS}"
+      WP_ADMIN_EMAIL: "${WP_ADMIN_EMAIL}"
+    volumes:
+      - "html:/var/www/html/"
+    command: >
+      bash -c "wp core install --url=\"$WP_URL\" --title=\"$WP_TITLE\" --admin_user=\"$WP_ADMIN_USER\" --admin_password=\"$WP_ADMIN_PASS\" --admin_email=\"$WP_ADMIN_EMAIL\" &&
+               wp plugin install two-factor --activate"
+    depends_on:
+      wp:
+        condition: service_healthy
+      wp_db:
+        condition: service_healthy
+
+volumes: 
+  mysql:
+  html:
